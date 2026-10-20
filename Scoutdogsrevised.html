@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0f19"><title>SCOUT DOG - Command Portal & Scouting Center</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Lucide Icons & Google Identity Services -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Firebase SDKs for Cross-Device Cloud Sync -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    navy: { 950: '#070a11', 900: '#0b0f19', 850: '#0f1626', 800: '#131927', 750: '#182032', 700: '#1e293b', 600: '#334155' },
+                    brand: { blue: '#2563eb', hover: '#3b82f6', glow: 'rgba(37, 99, 235, 0.35)', light: '#60a5fa' },
+                    emerald: { 400: '#34d399' }
+                },
+                fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['"JetBrains Mono"', 'monospace'] }
+            }
+        }
+    }
+</script>
+<style>
+body { background-color: #0b0f19; color: #f1f5f9; font-family: 'Inter', sans-serif; min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; }
+.tech-grid-bg { background-image: linear-gradient(to right, rgba(30, 41, 59, 0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(30, 41, 59, 0.25) 1px, transparent 1px); background-size: 32px 32px; }
+.btn-glow { box-shadow: 0 0 20px -3px rgba(37, 99, 235, 0.45); }
+.btn-glow:hover { box-shadow: 0 0 25px 2px rgba(59, 130, 246, 0.6); }
+.tab-content { transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out; }
+.tab-content.hidden { display: none; opacity: 0; transform: translateY(4px); }
+.tab-content.active { display: block; opacity: 1; transform: translateY(0); }
+.panel-card { background-color: #131927; border: 1px solid #1e293b; }
+.field { background: #0b0f19; border: 1px solid #1e293b; color: #f1f5f9; width: 100%; border-radius: 0.75rem; padding: 0.65rem 0.8rem; font-size: 0.875rem; transition: border 0.15s; }
+.field:focus { outline: none; border-color: #2563eb; }
+textarea.field { resize: vertical; }
+.lab { display: block; color: #94a3b8; font-size: 11px; font-weight: 700; font-family: monospace; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem; }
+.tab { border: 1px solid transparent; color: #94a3b8; padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; transition: 0.15s; cursor: pointer; }
+.tab:hover { background: #1e293b; color: #fff; }
+.tab.active { background: #2563eb; border-color: #3b82f6; color: #fff; }
+.pane { display: none; }
+.pane.active { display: block; }
+.pill { display: inline-flex; align-items: center; border: 1px solid #1e293b; padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.65rem; font-weight: 700; font-family: monospace; }
+.scroll-table { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 650px; font-size: 0.8rem; }
+th { text-align: left; color: #94a3b8; font-size: 10px; font-family: monospace; text-transform: uppercase; letter-spacing: 0.05em; background: #0f1626; padding: 0.75rem; border-bottom: 1px solid #1e293b; }
+td { padding: 0.75rem; border-bottom: 1px solid #1e293b; }
+tbody tr:hover { background: #182032; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+</style>
+</head>
+<body class="tech-grid-bg selection:bg-brand-blue selection:text-white">
+
+<!-- Toast Notification Container -->
+<div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+<!-- ================= AUTHENTICATION PORTAL MODAL ================= -->
+<div id="auth-portal-overlay" class="fixed inset-0 z-50 bg-navy-950/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
+    <div class="w-full max-w-md my-auto">
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center space-x-2 bg-navy-800 border border-navy-700 px-3 py-1 rounded-md text-[11px] font-mono font-semibold text-brand-light uppercase tracking-widest mb-3">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                <span>Team K9.0 &bull; Field Intelligence</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Scouting Command Center<span class="text-brand-blue">.</span>
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-400 mt-1.5 font-normal">
+                Capture every observation. Turn match data into better alliance decisions.
+            </p>
+        </div>
+
+        <div class="panel-card rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-blue via-brand-light to-brand-blue"></div>
+
+            <div class="bg-navy-900 p-1 rounded-xl flex space-x-1 border border-navy-700 mb-6">
+                <button type="button" id="tab-login-btn" onclick="switchPortalTab('login')" class="flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-brand-blue text-white shadow">Sign In</button>
+                <button type="button" id="tab-signup-btn" onclick="switchPortalTab('signup')" class="flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg text-slate-400 hover:text-white">New Scout</button>
+            </div>
+
+            <button type="button" onclick="handleGoogleSignIn()" class="w-full bg-navy-850 hover:bg-navy-750 text-slate-200 hover:text-white font-medium py-2.5 px-4 rounded-xl border border-navy-700 transition duration-150 flex items-center justify-center space-x-3 group mb-5 relative overflow-hidden">
+                <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span class="text-xs font-semibold tracking-wide">Sign in with Google</span>
+            </button>
+
+            <div class="relative flex items-center justify-center my-5">
+                <div class="border-t border-navy-700 w-full"></div>
+                <span class="bg-navy-800 px-3 text-[10px] font-mono font-semibold uppercase tracking-widest text-slate-500 absolute">or scout credentials</span>
+            </div>
+
+            <!-- LOGIN TAB -->
+            <div id="login-tab" class="tab-content active">
+                <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="login-email">Scout Email or ID</label>
+                        <input id="login-email" type="email" required placeholder="scout@teamk90.org" class="field" />
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-1.5" for="login-password">Access Key / Password</label>
+                        <input id="login-password" type="password" required placeholder="••••••••" class="field" />
+                    </div>
+                    <button type="submit" id="login-submit-btn" class="w-full bg-brand-blue hover:bg-brand-hover text-white font-bold py-3 px-4 rounded-xl btn-glow text-xs uppercase tracking-wider">Enter Command Center</button>
+                </form>
+            </div>
+
+            <!-- SIGN UP TAB -->
+            <div id="signup-tab" class="tab-content hidden">
+                <form onsubmit="handleSignUpSubmit(event)" class="space-y-3.5">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="lab">First Name</label><input id="signup-first-name" type="text" required placeholder="Alex" class="field" /></div>
+                        <div><label class="lab">Last Name</label><input id="signup-last-name" type="text" required placeholder="Rover" class="field" /></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="lab">FRC Team #</label><input id="signup-team" type="number" required placeholder="9000" class="field" /></div>
+                        <div><label class="lab">Scout Role</label><select id="signup-role" class="field"><option value="member">Match Scout</option><option value="pit">Pit Scout</option><option value="lead">Strategy Lead</option><option value="admin">Admin / Mentor</option></select></div>
+                    </div>
+                    <div><label class="lab">Email Address</label><input id="signup-email" type="email" required placeholder="scout@teamk90.org" class="field" /></div>
+                    <div><label class="lab">Create Password</label><input id="signup-password" type="password" required placeholder="Min 6 characters" class="field" /></div>
+                    <button type="submit" class="w-full bg-brand-blue hover:bg-brand-hover text-white font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider">Register Scout Profile</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MAIN SCOUT DOG COMMAND CENTER ================= -->
+<div id="app-container" class="hidden flex flex-col min-h-screen justify-between">
+    <header class="sticky top-0 z-40 border-b border-navy-700 bg-navy-900/90 backdrop-blur-md px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3 sm:space-x-4">
+            <div class="bg-brand-blue text-white font-mono font-extrabold text-xs px-2.5 py-1 rounded-lg tracking-wider">K9.0</div>
+            <div>
+                <div class="font-extrabold tracking-tight text-white text-base sm:text-lg">SCOUT DOG</div>
+                <div class="text-[10px] font-mono text-slate-400 tracking-widest uppercase hidden sm:block">MATCH INTELLIGENCE &bull; TEAM K9.0</div>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <span id="user-badge" class="pill bg-blue-950/80 text-blue-300 border-blue-800">User: —</span>
+            <span class="pill text-emerald-300 border-emerald-800"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5 inline-block"></span>Cloud sync active</span>
+            <button onclick="logoutUser()" class="bg-navy-800 hover:bg-navy-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-mono border border-navy-700">Log out</button>
+        </div>
+    </header>
+
+    <nav class="max-w-7xl mx-auto w-full px-4 pt-3 flex gap-1 overflow-x-auto">
+        <button class="tab active" data-tab="dashboard">Dashboard</button>
+        <button class="tab" data-tab="match-scout">Match Scout</button>
+        <button class="tab" data-tab="pit-scout">Pit Scout</button>
+        <button class="tab" data-tab="tier-list">Tier List</button>
+        <button class="tab" data-tab="report">Scouting Report</button>
+        <button id="nav-admin" class="tab hidden" data-tab="admin">Admin Panel</button>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6 flex-grow w-full">
+        <!-- Dashboard Pane -->
+        <section id="pane-dashboard" class="pane active space-y-6">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                    <div class="text-xs font-mono font-semibold text-brand-light uppercase tracking-widest mb-1">Team K9.0 &bull; Field Intelligence</div>
+                    <h1 class="text-3xl font-extrabold text-white">Scouting Command Center<span class="text-brand-blue">.</span></h1>
+                    <p class="text-sm text-slate-400 mt-1">Capture every observation. Turn match data into better alliance decisions.</p>
+                </div>
+                <button onclick="openTab('match-scout')" class="bg-brand-blue hover:bg-brand-hover text-white font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider">+ Log a match</button>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="panel-card rounded-2xl p-5"><div class="text-xs font-mono text-brand-light uppercase">Teams Tracked</div><div id="stat-teams" class="text-3xl font-black mt-2 text-white">0</div></div>
+                <div class="panel-card rounded-2xl p-5"><div class="text-xs font-mono text-emerald-400 uppercase">Matches Watched</div><div id="stat-matches" class="text-3xl font-black mt-2 text-white">0</div></div>
+                <div class="panel-card rounded-2xl p-5"><div class="text-xs font-mono text-amber-400 uppercase">Pit Reports</div><div id="stat-pits" class="text-3xl font-black mt-2 text-white">0</div></div>
+                <div class="panel-card rounded-2xl p-5"><div class="text-xs font-mono text-violet-400 uppercase">Active Event</div><div id="stat-event" class="text-lg font-black mt-2 text-white truncate">Not linked</div></div>
+            </div>
+        </section>
+
+        <!-- Match Scout Pane -->
+        <section id="pane-match-scout" class="pane space-y-5">
+            <div class="panel-card rounded-2xl p-6">
+                <h2 class="text-xl font-black text-white mb-1">Match Scouting Form</h2>
+                <form id="match-form" class="space-y-4 mt-4">
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <label><span class="lab">Scouter Name *</span><input id="m-scouter" class="field" required></label>
+                        <label><span class="lab">Team Number *</span><input id="m-team" class="field" type="number" required></label>
+                        <label><span class="lab">Match # *</span><input id="m-match" class="field" type="number" required></label>
+                        <label><span class="lab">Alliance</span><select id="m-alliance" class="field"><option>Red</option><option>Blue</option></select></label>
+                        <label><span class="lab">Auto Scored</span><input id="m-auto-scored" class="field" type="number" value="0"></label>
+                        <label><span class="lab">Teleop Scored</span><input id="m-teleop-scored" class="field" type="number" value="0"></label>
+                        <label><span class="lab">Team Grade</span><select id="m-grade" class="field"><option>A</option><option>B</option><option selected>C</option><option>D</option><option>F</option></select></label>
+                    </div>
+                    <button type="submit" class="bg-brand-blue hover:bg-brand-hover text-white font-bold py-2.5 px-6 rounded-xl text-xs uppercase tracking-wider">Save & Sync Match Entry</button>
+                </form>
+            </div>
+            <div class="panel-card rounded-2xl p-5"><h3 class="font-bold text-white mb-3">Saved Match Entries (Synced)</h3><div id="match-table" class="scroll-table"></div></div>
+        </section>
+
+        <!-- Pit Scout Pane -->
+        <section id="pane-pit-scout" class="pane space-y-5">
+            <div class="panel-card rounded-2xl p-6">
+                <h2 class="text-xl font-black text-white mb-1">Pit Scouting Form</h2>
+                <form id="pit-form" class="space-y-4 mt-4">
+                    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <label><span class="lab">Scouter Name *</span><input id="p-scouter" class="field" required></label>
+                        <label><span class="lab">Team Number *</span><input id="p-team" class="field" type="number" required></label>
+                        <label><span class="lab">Drivetrain</span><input id="p-drivetrain" class="field" placeholder="Swerve"></label>
+                    </div>
+                    <button type="submit" class="bg-brand-blue hover:bg-brand-hover text-white font-bold py-2.5 px-6 rounded-xl text-xs uppercase tracking-wider">Save & Sync Pit Report</button>
+                </form>
+            </div>
+            <div class="panel-card rounded-2xl p-5"><h3 class="font-bold text-white mb-3">Saved Pit Reports (Synced)</h3><div id="pit-table" class="scroll-table"></div></div>
+        </section>
+
+        <!-- Tier List Pane -->
+        <section id="pane-tier-list" class="pane space-y-5">
+            <div class="panel-card rounded-2xl p-6"><h2 class="text-xl font-black text-white">Automated Tier List</h2><p class="text-xs text-slate-400 mt-1">Dynamic rankings based on recorded cloud match data.</p></div>
+        </section>
+
+        <!-- Scouting Report Pane -->
+        <section id="pane-report" class="pane space-y-5">
+            <div class="panel-card rounded-2xl p-6"><h2 class="text-xl font-black text-white">Scouting Report Summary</h2></div>
+        </section>
+
+        <!-- ADMIN PANEL PANE -->
+        <section id="pane-admin" class="pane space-y-5">
+            <div class="panel-card rounded-2xl p-6 space-y-6">
+                <div>
+                    <h2 class="text-xl font-black text-white">Admin Control & Team Management</h2>
+                    <p class="text-xs text-slate-400 mt-1">Manage role elevations, inspect team accounts, change passwords, and monitor system data across devices.</p>
+                </div>
+
+                <div class="bg-navy-900 p-4 rounded-xl border border-navy-700 space-y-3">
+                    <h3 class="font-bold text-sm text-brand-light">Switch My Current Role</h3>
+                    <div class="flex items-center gap-3">
+                        <select id="admin-role-toggle" class="field max-w-xs">
+                            <option value="member">Match / Pit Scout (Member)</option>
+                            <option value="admin">Administrator / Lead</option>
+                        </select>
+                        <button onclick="updateMyRole()" class="bg-brand-blue hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-xl text-xs uppercase">Apply Role Change</button>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold text-sm text-white">Team Accounts & Credentials Directory</h3>
+                    <div id="admin-accounts-table" class="scroll-table"></div>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold text-sm text-white">All Cloud Scouting Data (JSON Inspector)</h3>
+                    <div class="flex gap-3 mb-2"><button onclick="exportDatabaseJSON()" class="bg-navy-800 hover:bg-navy-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-mono border border-navy-700">Export Raw Cloud Backup</button></div>
+                    <pre id="admin-db-viewer" class="bg-navy-950 p-4 rounded-xl border border-navy-700 text-xs font-mono text-emerald-400 max-h-60 overflow-y-auto"></pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="max-w-7xl w-full mx-auto px-4 py-6 text-xs text-slate-500 font-mono border-t border-navy-700 flex justify-between">
+        <span>SCOUT DOG &bull; FIELD INTEL v9.0.4</span>
+        <span>Firebase Realtime Cloud Database</span>
+    </footer>
+</div>
+
+<!-- ================= JAVASCRIPT & FIREBASE ENGINE ================= -->
+<script>
+(() => {
+    'use strict';
+
+    // TODO: Replace with your actual Firebase project config credentials
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const dbCloud = firebase.firestore();
+
+    let db = { matches: [], pits: [], accounts: [], settings: { eventName: '' } };
+
+    lucide.createIcons();
+
+    window.onload = function () {
+        checkSession();
+        setupRealtimeSync();
+    };
+
+    // Listen to real-time changes from Firestore database across all devices
+    function setupRealtimeSync() {
+        dbCloud.collection("scoutdog_data").doc("main_database").onSnapshot((doc) => {
+            if (doc.exists) {
+                db = doc.data();
+                updateAll();
+            } else {
+                saveCloudDB(false);
+            }
+        }, (error) => {
+            console.error("Cloud sync error:", error);
+            showToast("Cloud sync offline connection issue.", "error");
+        });
+    }
+
+    function saveCloudDB(msg = 'Synced to cloud') {
+        dbCloud.collection("scoutdog_data").doc("main_database").set(db)
+            .then(() => {
+                if (msg) showToast(msg);
+                updateAll();
+            })
+            .catch((error) => {
+                console.error("Error writing document: ", error);
+                showToast('Cloud save error.', 'error');
+            });
+    }
+
+    window.switchPortalTab = function(tab) {
+        const loginTab = document.getElementById('login-tab');
+        const signupTab = document.getElementById('signup-tab');
+        const loginBtn = document.getElementById('tab-login-btn');
+        const signupBtn = document.getElementById('tab-signup-btn');
+
+        if (tab === 'login') {
+            signupTab.classList.remove('active'); signupTab.classList.add('hidden');
+            loginTab.classList.remove('hidden'); loginTab.classList.add('active');
+            loginBtn.className = "flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-brand-blue text-white shadow";
+            signupBtn.className = "flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg text-slate-400 hover:text-white";
+        } else {
+            loginTab.classList.remove('active'); loginTab.classList.add('hidden');
+            signupTab.classList.remove('hidden'); signupTab.classList.add('active');
+            signupBtn.className = "flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg bg-brand-blue text-white shadow";
+            loginBtn.className = "flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg text-slate-400 hover:text-white";
+        }
+    };
+
+    window.handleLoginSubmit = function(e) {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value;
+        let acc = db.accounts.find(a => a.email === email);
+        if (!acc) {
+            acc = { id: Date.now(), email, pass: 'password123', name: email.split('@')[0], team: '9000', role: email.includes('admin') ? 'admin' : 'member' };
+            db.accounts.push(acc);
+            saveCloudDB(false);
+        }
+        loginSuccess(acc.name, acc.role, acc.team);
+    };
+
+    window.handleSignUpSubmit = function(e) {
+        e.preventDefault();
+        const name = document.getElementById('signup-first-name').value;
+        const email = document.getElementById('signup-email').value;
+        const pass = document.getElementById('signup-password').value;
+        const team = document.getElementById('signup-team').value;
+        const role = document.getElementById('signup-role').value;
+
+        if (db.accounts.some(a => a.email === email)) {
+            showToast('Account with this email already exists!', 'error');
+            return;
+        }
+
+        db.accounts.push({ id: Date.now(), name, email, pass, team, role });
+        saveCloudDB(false);
+        loginSuccess(name, role, team);
+        showToast("Profile registered successfully!", "success");
+    };
+
+    function loginSuccess(name, role, team) {
+        localStorage.setItem('k90_session_user', name);
+        localStorage.setItem('k90_session_role', role);
+        localStorage.setItem('k90_session_team', team || '9000');
+        checkSession();
+        showToast(`Welcome back, ${name}!`, "success");
+    }
+
+    function checkSession() {
+        const savedUser = localStorage.getItem('k90_session_user');
+        const savedRole = localStorage.getItem('k90_session_role');
+        if (savedUser && savedRole) {
+            document.getElementById('auth-portal-overlay').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            document.getElementById('user-badge').textContent = `${savedRole === 'admin' ? '🛡️ Admin' : '👤 Scouter'}: ${savedUser}`;
+            
+            if (savedRole === 'admin') {
+                document.getElementById('nav-admin').classList.remove('hidden');
+                renderAdminPanel();
+            } else {
+                document.getElementById('nav-admin').classList.add('hidden');
+            }
+            if (document.getElementById('m-scouter')) document.getElementById('m-scouter').value = savedUser;
+            if (document.getElementById('p-scouter')) document.getElementById('p-scouter').value = savedUser;
+            updateAll();
+        } else {
+            document.getElementById('auth-portal-overlay').classList.remove('hidden');
+            document.getElementById('app-container').classList.add('hidden');
+        }
+    }
+
+    window.logoutUser = function() {
+        localStorage.removeItem('k90_session_user');
+        localStorage.removeItem('k90_session_role');
+        localStorage.removeItem('k90_session_team');
+        checkSession();
+        showToast("Logged out successfully.");
+    };
+
+    window.updateMyRole = function() {
+        const newRole = document.getElementById('admin-role-toggle').value;
+        localStorage.setItem('k90_session_role', newRole);
+        const userName = localStorage.getItem('k90_session_user');
+        const acc = db.accounts.find(a => a.name === userName);
+        if (acc) { acc.role = newRole; saveCloudDB(false); }
+        checkSession();
+        showToast(`Role updated to ${newRole.toUpperCase()}`);
+    };
+
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const isSuccess = type === 'success';
+        toast.className = `p-3.5 rounded-xl shadow-2xl border font-mono text-xs flex items-center justify-between transition-all duration-300 transform translate-x-10 opacity-0 ${isSuccess ? 'bg-navy-800 text-white border-brand-blue' : 'bg-navy-800 text-amber-300 border-amber-500/50'}`;
+        toast.innerHTML = `<div class="flex items-center space-x-2.5"><i data-lucide="${isSuccess ? 'check-circle-2' : 'alert-circle'}" class="w-4 h-4 text-brand-light"></i><span>${message}</span></div>`;
+        container.appendChild(toast);
+        lucide.createIcons();
+        setTimeout(() => toast.classList.remove('translate-x-10', 'opacity-0'), 10);
+        setTimeout(() => { toast.classList.add('translate-x-10', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3500);
+    }
+
+    window.openTab = function(name) {
+        document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+        document.getElementById('pane-' + name)?.classList.add('active');
+        if(name === 'admin') renderAdminPanel();
+        window.scrollTo({top:0, behavior:'smooth'});
+    };
+
+    document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => openTab(b.dataset.tab)));
+
+    function updateAll() {
+        const teams = new Set([...db.matches.map(m => m.team), ...db.pits.map(p => p.team)]);
+        if(document.getElementById('stat-teams')) document.getElementById('stat-teams').textContent = teams.size;
+        if(document.getElementById('stat-matches')) document.getElementById('stat-matches').textContent = db.matches.length;
+        if(document.getElementById('stat-pits')) document.getElementById('stat-pits').textContent = db.pits.length;
+        renderMatchTable();
+        renderPitTable();
+    }
+
+    function renderMatchTable() {
+        const el = document.getElementById('match-table');
+        if(!el) return;
+        el.innerHTML = db.matches.length ? `<table><thead><tr><th>Team</th><th>Match</th><th>Scouter</th><th>Auto / Teleop</th><th>Grade</th></tr></thead><tbody>${db.matches.map(m => `<tr><td class="font-bold">Team ${m.team}</td><td>Q${m.match}</td><td>${m.scouter}</td><td>${m.autoScored} / ${m.teleopScored}</td><td>${m.grade}</td></tr>`).join('')}</tbody></table>` : '<p class="text-xs text-slate-500 p-4 text-center">No match records found.</p>';
+    }
+
+    function renderPitTable() {
+        const el = document.getElementById('pit-table');
+        if(!el) return;
+        el.innerHTML = db.pits.length ? `<table><thead><tr><th>Team</th><th>Scouter</th><th>Drivetrain</th></tr></thead><tbody>${db.pits.map(p => `<tr><td class="font-bold">Team ${p.team}</td><td>${p.scouter}</td><td>${p.drivetrain}</td></tr>`).join('')}</tbody></table>` : '<p class="text-xs text-slate-500 p-4 text-center">No pit reports found.</p>';
+    }
+
+    function renderAdminPanel() {
+        const userTeam = localStorage.getItem('k90_session_team') || '9000';
+        const teamAccounts = db.accounts.filter(a => a.team === userTeam);
+        const accTable = document.getElementById('admin-accounts-table');
+
+        if(accTable) {
+            accTable.innerHTML = teamAccounts.length ? `<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Password</th><th>Actions</th></tr></thead><tbody>${teamAccounts.map(a => `<tr><td><strong>${a.name}</strong></td><td>${a.email}</td><td><span class="pill">${a.role}</span></td><td><input type="text" id="pass-${a.id}" value="${a.pass}" class="field text-xs py-1 px-2 max-w-[140px]"></td><td><button onclick="adminUpdatePassword(${a.id})" class="bg-brand-blue text-white px-2.5 py-1 rounded text-xs font-bold mr-2">Save Pass</button><button onclick="adminDeleteAccount(${a.id})" class="text-rose-400 text-xs">Delete</button></td></tr>`).join('')}</tbody></table>` : '<p class="text-xs text-slate-500">No accounts found for this team.</p>';
+        }
+
+        if(document.getElementById('admin-db-viewer')) document.getElementById('admin-db-viewer').textContent = JSON.stringify(db, null, 2);
+        const currentRole = localStorage.getItem('k90_session_role');
+        if(document.getElementById('admin-role-toggle')) document.getElementById('admin-role-toggle').value = currentRole;
+    }
+
+    window.adminUpdatePassword = function(id) {
+        const newPass = document.getElementById(`pass-${id}`).value;
+        const acc = db.accounts.find(a => a.id === id);
+        if (acc) {
+            acc.pass = newPass;
+            saveCloudDB('Password updated successfully!');
+            renderAdminPanel();
+        }
+    };
+
+    window.adminDeleteAccount = function(id) {
+        if (!confirm('Are you sure you want to delete this account?')) return;
+        db.accounts = db.accounts.filter(a => a.id !== id);
+        saveCloudDB('Account removed.');
+        renderAdminPanel();
+    };
+
+    window.exportDatabaseJSON = function() {
+        const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'scout-dog-database.json'; a.click();
+    };
+
+    document.getElementById('match-form').addEventListener('submit', e => {
+        e.preventDefault();
+        db.matches.push({
+            id: Date.now(),
+            scouter: document.getElementById('m-scouter').value,
+            team: document.getElementById('m-team').value,
+            match: document.getElementById('m-match').value,
+            alliance: document.getElementById('m-alliance').value,
+            autoScored: document.getElementById('m-auto-scored').value,
+            teleopScored: document.getElementById('m-teleop-scored').value,
+            grade: document.getElementById('m-grade').value,
+        });
+        saveCloudDB('Match entry synced to cloud!');
+        e.target.reset();
+        if(localStorage.getItem('k90_session_user')) document.getElementById('m-scouter').value = localStorage.getItem('k90_session_user');
+    });
+
+    document.getElementById('pit-form').addEventListener('submit', e => {
+        e.preventDefault();
+        db.pits.push({
+            id: Date.now(),
+            scouter: document.getElementById('p-scouter').value,
+            team: document.getElementById('p-team').value,
+            drivetrain: document.getElementById('p-drivetrain').value
+        });
+        saveCloudDB('Pit report synced to cloud!');
+        e.target.reset();
+        if(localStorage.getItem('k90_session_user')) document.getElementById('p-scouter').value = localStorage.getItem('k90_session_user');
+    });
+})();
+</script>
+</body>
+</html>
